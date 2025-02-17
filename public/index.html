@@ -1,130 +1,80 @@
+// public/index.html
 <!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quadrati Online</title>
-    <script src="/socket.io/socket.io.js"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-            background: #222;
-            color: white;
-        }
-
-        canvas {
-            display: block;
-            background: #111;
-        }
-
-        /* Stile della chat */
-        #chatContainer {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            width: 300px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px;
-            border-radius: 5px;
-        }
-
-        #chatBox {
-            height: 150px;
-            overflow-y: auto;
-            border-bottom: 1px solid #fff;
-            margin-bottom: 5px;
-            padding: 5px;
-        }
-
-        #chatInput {
-            width: 80%;
-            padding: 5px;
-            background: #333;
-            border: 1px solid #555;
-            color: white;
-        }
-
-        #chatForm button {
-            width: 18%;
-            padding: 5px;
-            background: #00ff00;
-            color: black;
-            border: none;
-            cursor: pointer;
-        }
+        body { margin: 0; overflow: hidden; background: black; color: white; }
+        canvas { display: block; background: #222; }
+        #chat-container { position: fixed; bottom: 10px; left: 10px; }
+        #chat-box { width: 300px; height: 150px; overflow-y: auto; background: white; color: black; padding: 5px; }
+        #username-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
-
-    <!-- Contenitore della Chat -->
-    <div id="chatContainer">
-        <div id="chatBox"></div>
-        <form id="chatForm">
-            <input type="text" id="chatInput" placeholder="Scrivi un messaggio..." autocomplete="off">
-            <button type="submit">Invia</button>
-        </form>
+    <div id="username-container">
+        <input type="text" id="username" placeholder="Inserisci il tuo nome">
+        <button onclick="setUsername()">Entra</button>
     </div>
-
+    <canvas id="gameCanvas"></canvas>
+    <div id="chat-container">
+        <div id="chat-box"></div>
+        <input type="text" id="chat-input" placeholder="Scrivi un messaggio...">
+        <button onclick="sendMessage()">Invia</button>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
+        let username;
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
-
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-
         let players = {};
-        let myId = null;
 
-        socket.on("connect", () => {
-            myId = socket.id;
-            console.log("Connesso con ID:", myId);
+        function setUsername() {
+            username = document.getElementById("username").value;
+            if (username) {
+                socket.emit("setUsername", username);
+                document.getElementById("username-container").style.display = "none";
+            }
+        }
+
+        socket.on("loginSuccess", () => {
+            document.getElementById("username-container").style.display = "none";
         });
 
         socket.on("updatePlayers", (serverPlayers) => {
             players = serverPlayers;
+            drawGame();
         });
 
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "#111"; // Sfondo scuro
-            ctx.fillRect(0, 0, canvas.width, canvas.height); 
+        window.addEventListener("keydown", (e) => {
+            socket.emit("move", e.key);
+        });
 
-            for (const id in players) {
-                const player = players[id];
-                ctx.fillStyle = id === myId ? "blue" : "red";
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let id in players) {
+                let player = players[id];
+                ctx.fillStyle = id === socket.id ? "blue" : "red";
                 ctx.fillRect(player.x, player.y, 20, 20);
             }
-
-            requestAnimationFrame(gameLoop);
         }
 
-        gameLoop();
-
-        window.addEventListener("keydown", (event) => {
-            socket.emit("move", event.key);
-        });
-
-        // Chat
-        const chatInput = document.getElementById("chatInput");
-        const chatForm = document.getElementById("chatForm");
-        const chatBox = document.getElementById("chatBox");
-
-        chatForm.addEventListener("submit", (e) => {
-            e.preventDefault();
-            if (chatInput.value.trim() !== "") {
-                socket.emit("chat message", chatInput.value);
-                chatInput.value = "";
+        function sendMessage() {
+            const msg = document.getElementById("chat-input").value;
+            if (msg) {
+                socket.emit("chat message", msg);
+                document.getElementById("chat-input").value = "";
             }
-        });
+        }
 
-        socket.on("chat message", (data) => {
-            const msgElement = document.createElement("p");
-            msgElement.textContent = `🗨️ ${data.id}: ${data.message}`;
-            chatBox.appendChild(msgElement);
+        socket.on("chat message", ({ username, message }) => {
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML += `<p><strong>${username}:</strong> ${message}</p>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         });
     </script>

@@ -1,12 +1,14 @@
+// server.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
 let players = {};
 
@@ -20,6 +22,7 @@ io.on("connection", (socket) => {
             y: Math.random() * 2000 
         };
         io.emit("updatePlayers", players);
+        socket.emit("loginSuccess");
     });
 
     socket.on("move", (key) => {
