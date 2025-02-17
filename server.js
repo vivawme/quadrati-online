@@ -11,6 +11,9 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, "public")));
 
 let players = {};
+const MAP_WIDTH = 2000;
+const MAP_HEIGHT = 2000;
+const PLAYER_SIZE = 20;
 
 io.on("connection", (socket) => {
     console.log("🔵 Utente connesso:", socket.id);
@@ -18,8 +21,8 @@ io.on("connection", (socket) => {
     socket.on("setUsername", (username) => {
         players[socket.id] = { 
             username, 
-            x: Math.random() * 2000, 
-            y: Math.random() * 2000 
+            x: Math.random() * (MAP_WIDTH - PLAYER_SIZE), 
+            y: Math.random() * (MAP_HEIGHT - PLAYER_SIZE) 
         };
         io.emit("updatePlayers", players);
         socket.emit("loginSuccess");
@@ -31,9 +34,9 @@ io.on("connection", (socket) => {
 
         const speed = 10;
         if (key === "ArrowUp" || key === "w") player.y = Math.max(0, player.y - speed);
-        if (key === "ArrowDown" || key === "s") player.y = Math.min(2000, player.y + speed);
+        if (key === "ArrowDown" || key === "s") player.y = Math.min(MAP_HEIGHT - PLAYER_SIZE, player.y + speed);
         if (key === "ArrowLeft" || key === "a") player.x = Math.max(0, player.x - speed);
-        if (key === "ArrowRight" || key === "d") player.x = Math.min(2000, player.x + speed);
+        if (key === "ArrowRight" || key === "d") player.x = Math.min(MAP_WIDTH - PLAYER_SIZE, player.x + speed);
 
         io.emit("updatePlayers", players);
     });
