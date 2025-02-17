@@ -38,3 +38,16 @@ io.on("connection", (socket) => {
 server.listen(3000, () => {
     console.log("Server avviato su http://localhost:3000");
 });
+
+io.on("connection", (socket) => {
+    console.log("Un utente si è connesso:", socket.id);
+
+    // Ascolta i messaggi della chat e inviali a tutti
+    socket.on("chat message", (msg) => {
+        io.emit("chat message", { id: socket.id, message: msg });
+    });
+
+    socket.on("disconnect", () => {
+        console.log("Utente disconnesso:", socket.id);
+    });
+});

@@ -40,3 +40,22 @@ document.addEventListener("DOMContentLoaded", () => {
         players = updatedPlayers; // Aggiorna tutti i giocatori
     });
 });
+const chatInput = document.getElementById("chatInput");
+const chatForm = document.getElementById("chatForm");
+const chatBox = document.getElementById("chatBox");
+
+chatForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (chatInput.value.trim() !== "") {
+        socket.emit("chat message", chatInput.value); // Invia messaggio al server
+        chatInput.value = ""; // Pulisce il campo di input
+    }
+});
+
+// Riceve e visualizza i messaggi della chat
+socket.on("chat message", (data) => {
+    const msgElement = document.createElement("p");
+    msgElement.textContent = `🗨️ ${data.id}: ${data.message}`;
+    chatBox.appendChild(msgElement);
+    chatBox.scrollTop = chatBox.scrollHeight; // Scorri in basso alla chat
+});
