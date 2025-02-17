@@ -1,53 +1,53 @@
 const express = require("express");
 const http = require("http");
-const socketIo = require("socket.io");
+const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = new Server(server);
 
-app.use(express.static("public")); // Serve i file statici
+app.use(express.static("public"));
 
-let players = {}; // Oggetto per salvare tutti i giocatori connessi
+let players = {};
 
 io.on("connection", (socket) => {
-    console.log("Un utente si è connesso:", socket.id);
+    console.log("🔵 Utente connesso:", socket.id);
 
-    // Aggiungiamo il nuovo giocatore
-    players[socket.id] = { x: 100, y: 100, size: 20 };
+    // Aggiungi un nuovo giocatore in una posizione casuale
+    players[socket.id] = { x: Math.random() * 500, y: Math.random() * 500 };
 
     // Invia la lista aggiornata dei giocatori a tutti
-    io.emit("update", players);
+    io.emit("updatePlayers", players);
 
-    // Riceve i movimenti del giocatore
-    socket.on("move", (data) => {
-        if (players[socket.id]) {
-            players[socket.id] = data;
-            io.emit("update", players);
-        }
+    // Gestisce il movimento
+    socket.on("move", (key) => {
+        const player = players[socket.id];
+        if (!player) return;
+
+        const speed = 10;
+        if (key === "ArrowUp" || key === "w") player.y -= speed;
+        if (key === "ArrowDown" || key === "s") player.y += speed;
+        if (key === "ArrowLeft" || key === "a") player.x -= speed;
+        if (key === "ArrowRight" || key === "d") player.x += speed;
+
+        io.emit("updatePlayers", players);
     });
 
-    // Quando un giocatore si disconnette
+    // Gestisce i messaggi della chat
+    socket.on("chat message", (message) => {
+        io.emit("chat message", { id: socket.id, message });
+    });
+
+    // Gestisce la disconnessione del giocatore
     socket.on("disconnect", () => {
-        console.log("Utente disconnesso:", socket.id);
+        console.log("🔴 Utente disconnesso:", socket.id);
         delete players[socket.id];
-        io.emit("update", players);
+        io.emit("updatePlayers", players);
     });
 });
 
-server.listen(3000, () => {
-    console.log("Server avviato su http://localhost:3000");
-});
-
-io.on("connection", (socket) => {
-    console.log("Un utente si è connesso:", socket.id);
-
-    // Ascolta i messaggi della chat e inviali a tutti
-    socket.on("chat message", (msg) => {
-        io.emit("chat message", { id: socket.id, message: msg });
-    });
-
-    socket.on("disconnect", () => {
-        console.log("Utente disconnesso:", socket.id);
-    });
+// Avvia il server sulla porta 3000
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`🚀 Server avviato su http://localhost:${PORT}`);
 });
