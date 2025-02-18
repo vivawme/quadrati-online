@@ -5,188 +5,124 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quadrati Online</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: black;
+        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+        canvas { background: #ccc; display: block; }
+        .chat-box {
+            position: absolute; bottom: 10px; left: 10px;
+            width: 300px; height: 200px; background: white; border: 1px solid black;
+            overflow-y: auto; padding: 5px;
         }
-        canvas {
-            display: block;
+        .chat-input {
+            position: absolute; bottom: 10px; left: 10px; width: 300px;
         }
-        #news-container {
-            display: none;
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
-            width: 80%;
-            max-width: 500px;
-            font-family: Arial, sans-serif;
-        }
-        #chat-container {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border-radius: 5px;
-            display: flex;
-            flex-direction: column;
-        }
-        #chat-messages {
-            max-height: 100px;
-            overflow-y: auto;
-        }
-        #chat-input {
-            width: 200px;
+        .news-box {
+            position: absolute; top: 10px; right: 10px; width: 400px;
+            background: white; padding: 10px; border-radius: 10px; display: none;
         }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
-    <div id="news-container"></div>
-    <div id="chat-container">
-        <div id="chat-messages"></div>
-        <input type="text" id="chat-input" placeholder="Scrivi un messaggio...">
+
+    <div class="chat-box" id="chatBox"></div>
+    <input type="text" id="chatInput" class="chat-input" placeholder="Scrivi un messaggio...">
+
+    <div class="news-box" id="newsBox">
+        <h3>Ultime Notizie</h3>
+        <ul id="newsList"></ul>
     </div>
-    <script src="/socket.io/socket.io.js"></script>
+
     <script>
-        const socket = io();
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
+        const chatBox = document.getElementById("chatBox");
+        const chatInput = document.getElementById("chatInput");
+        const newsBox = document.getElementById("newsBox");
+        const newsList = document.getElementById("newsList");
+
+        let ws = new WebSocket("wss://tuo-server-su-render.com");
+        let x = 50, y = 50, size = 30;
+        let inNewsScene = false;
+
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        let players = {};
-        let player = { x: 100, y: 100, scene: "main" };
-
-        socket.on("currentPlayers", (serverPlayers) => {
-            players = serverPlayers;
-            draw();
-        });
-
-        socket.on("newPlayer", (newPlayer) => {
-            players[newPlayer.id] = newPlayer;
-            draw();
-        });
-
-        socket.on("playerMoved", (data) => {
-            if (players[data.id]) {
-                players[data.id].x = data.x;
-                players[data.id].y = data.y;
-                draw();
-            }
-        });
-
-        socket.on("sceneChanged", (data) => {
-            if (players[data.id]) {
-                players[data.id].scene = data.scene;
-                draw();
-            }
-        });
-
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = player.scene === "news" ? "yellow" : "black";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            for (let id in players) {
-                const p = players[id];
-                if (p.scene === player.scene) {
-                    ctx.fillStyle = id === socket.id ? "blue" : "red";
-                    ctx.fillRect(p.x, p.y, 20, 20);
-                }
-            }
-
-            if (player.scene === "main") {
+            if (inNewsScene) {
                 ctx.fillStyle = "yellow";
-                ctx.fillRect(canvas.width - 150, canvas.height / 2 - 25, 100, 50);
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "black";
+                ctx.fillRect(canvas.width - 100, 20, 80, 40);
+                ctx.fillStyle = "white";
+                ctx.fillText("Home", canvas.width - 80, 50);
+            } else {
+                ctx.fillStyle = "blue";
+                ctx.fillRect(x, y, size, size);
+
+                ctx.fillStyle = "yellow";
+                ctx.fillRect(canvas.width - 150, canvas.height / 2 - 50, 100, 100);
                 ctx.fillStyle = "black";
                 ctx.fillText("Giornale", canvas.width - 130, canvas.height / 2);
-            }
-
-            if (player.scene === "news") {
-                ctx.fillStyle = "black";
-                ctx.fillRect(50, 50, 100, 50);
-                ctx.fillStyle = "white";
-                ctx.fillText("Home", 80, 80);
             }
         }
 
         window.addEventListener("keydown", (e) => {
-            const speed = 5;
-            if (e.key === "w") player.y -= speed;
-            if (e.key === "s") player.y += speed;
-            if (e.key === "a") player.x -= speed;
-            if (e.key === "d") player.x += speed;
+            if (!inNewsScene) {
+                if (e.key === "ArrowUp") y -= 10;
+                if (e.key === "ArrowDown") y += 10;
+                if (e.key === "ArrowLeft") x -= 10;
+                if (e.key === "ArrowRight") x += 10;
 
-            socket.emit("move", { x: player.x, y: player.y });
+                let journalX = canvas.width - 150;
+                let journalY = canvas.height / 2 - 50;
 
-            if (player.scene === "main" &&
-                player.x >= canvas.width - 150 &&
-                player.x <= canvas.width - 50 &&
-                player.y >= canvas.height / 2 - 25 &&
-                player.y <= canvas.height / 2 + 25) {
-                
-                player.scene = "news";
-                socket.emit("changeScene", "news");
-                document.getElementById("news-container").style.display = "block";
-                loadNews();
+                if (x + size > journalX && x < journalX + 100 && y + size > journalY && y < journalY + 100) {
+                    inNewsScene = true;
+                    newsBox.style.display = "block";
+                }
+            } else {
+                let homeX = canvas.width - 100;
+                let homeY = 20;
+
+                if (x + size > homeX && x < homeX + 80 && y + size > homeY && y < homeY + 40) {
+                    inNewsScene = false;
+                    newsBox.style.display = "none";
+                }
             }
-
-            if (player.scene === "news" &&
-                player.x >= 50 &&
-                player.x <= 150 &&
-                player.y >= 50 &&
-                player.y <= 100) {
-                
-                player.scene = "main";
-                socket.emit("changeScene", "main");
-                document.getElementById("news-container").style.display = "none";
-            }
-
             draw();
         });
 
-        async function loadNews() {
-            try {
-                const response = await fetch("/news");
-                const news = await response.json();
-                const container = document.getElementById("news-container");
-                container.innerHTML = "<h3>Ultime Notizie</h3>";
-                news.forEach(n => {
-                    container.innerHTML += `<p><strong>${n.source}</strong>: ${n.title}</p>`;
+        ws.onmessage = (event) => {
+            let data = JSON.parse(event.data);
+            if (data.type === "chat") {
+                let msg = document.createElement("p");
+                msg.textContent = `${data.user}: ${data.text}`;
+                chatBox.appendChild(msg);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            } else if (data.type === "news") {
+                newsList.innerHTML = "";
+                data.data.forEach(news => {
+                    let li = document.createElement("li");
+                    li.innerHTML = `<b>${news.source}:</b> ${news.title}`;
+                    newsList.appendChild(li);
                 });
-            } catch (error) {
-                console.error("Errore nel caricamento delle notizie:", error);
             }
-        }
-
-        socket.on("removePlayer", (id) => {
-            delete players[id];
-            draw();
-        });
-
-        // CHAT
-        const chatInput = document.getElementById("chat-input");
-        const chatMessages = document.getElementById("chat-messages");
+        };
 
         chatInput.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && chatInput.value.trim() !== "") {
-                socket.emit("chatMessage", chatInput.value);
-                chatInput.value = "";
+            if (e.key === "Enter") {
+                let message = chatInput.value.trim();
+                if (message) {
+                    ws.send(JSON.stringify({ type: "chat", user: "Utente", text: message }));
+                    chatInput.value = "";
+                }
             }
         });
 
-        socket.on("chatMessage", (msg) => {
-            const messageElement = document.createElement("p");
-            messageElement.textContent = msg;
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        });
+        draw();
     </script>
 </body>
 </html>
