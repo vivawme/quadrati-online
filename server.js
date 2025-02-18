@@ -1,6 +1,8 @@
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
+const Parser = require("rss-parser");
+const parser = new Parser();
 
 const app = express();
 const server = http.createServer(app);
@@ -10,6 +12,26 @@ app.use(express.static("public"));
 
 const players = {};
 const messages = [];
+let newsCache = { libero: [], repubblica: [], ansa: [] };
+let lastFetchTime = 0;
+const fetchInterval = 10 * 60 * 1000; // 10 minuti
+
+async function fetchNews() {
+    try {
+        const [liberoFeed, repubblicaFeed, ansaFeed] = await Promise.all([
+            parser.parseURL("https://www.liberoquotidiano.it/rss.xml"),
+            parser.parseURL("https://www.repubblica.it/rss.xml"),
+            parser.parseURL("https://www.ansa.it/sito/ansait_rss.xml")
+        ]);
+
+        newsCache.libero = liberoFeed.items.slice(0, 5);
+        newsCache.repubblica = repubblicaFeed.items.slice(0, 5);
+        newsCache.ansa = ansaFeed.items.slice(0, 5);
+        lastFetchTime = Date.now();
+    } catch (error) {
+        console.error("Errore nel recupero delle notizie:", error);
+    }
+}
 
 io.on("connection", (socket) => {
     console.log("Un utente si è connesso:", socket.id);
@@ -29,7 +51,6 @@ io.on("connection", (socket) => {
         if (key === "ArrowRight" || key === "d") player.x += speed;
 
         if (player.scene === "main") {
-            // Controllo collisione con il rettangolo giallo "Giornale"
             const rectX = 650, rectY = 260, rectWidth = 150, rectHeight = 80;
             if (
                 player.x < rectX + rectWidth &&
@@ -39,15 +60,22 @@ io.on("connection", (socket) => {
             ) {
                 player.scene = "yellowRoom";
                 socket.emit("changeScene", { id: socket.id, scene: "yellowRoom" });
+
+                if (Date.now() - lastFetchTime > fetchInterval) {
+                    fetchNews().then(() => {
+                        socket.emit("newsUpdate", newsCache);
+                    });
+                } else {
+                    socket.emit("newsUpdate", newsCache);
+                }
             }
         } else if (player.scene === "yellowRoom") {
-            // Controllo collisione con il rettangolo nero "Home"
             const homeX = 300, homeY = 300, homeWidth = 150, homeHeight = 80;
             if (
                 player.x < homeX + homeWidth &&
                 player.x + 20 > homeX &&
                 player.y < homeY + homeHeight &&
-                player.y + 20 > homeY
+                player.y + 20 > homeX
             ) {
                 player.scene = "main";
                 socket.emit("changeScene", { id: socket.id, scene: "main" });

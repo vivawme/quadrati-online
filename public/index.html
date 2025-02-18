@@ -28,110 +28,107 @@
             padding: 5px;
             font-size: 14px;
         }
+        #news-container {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 300px;
+            height: 400px;
+            background: rgba(255, 255, 0, 0.8);
+            color: black;
+            padding: 10px;
+            display: none;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
-    
     <div id="chat-container"></div>
-    <input type="text" id="chat-input" placeholder="Scrivi un messaggio..." autocomplete="off">
+    <input id="chat-input" type="text" placeholder="Scrivi un messaggio...">
+    <div id="news-container"></div>
 
     <script>
         const socket = io();
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
-        const chatContainer = document.getElementById("chat-container");
-        const chatInput = document.getElementById("chat-input");
-
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        let myId = null;
+        let playerId;
         let players = {};
-        let currentScene = "main";
-        let messages = [];
+        let scene = "main";
 
         socket.on("init", (data) => {
-            myId = data.id;
+            playerId = data.id;
             players = data.players;
-            messages = data.messages;
-            requestAnimationFrame(gameLoop);
-            updateChat();
+            drawScene();
         });
 
         socket.on("updatePlayers", (updatedPlayers) => {
             players = updatedPlayers;
+            drawScene();
         });
 
         socket.on("changeScene", (data) => {
-            if (data.id === myId) {
-                currentScene = data.scene;
+            if (data.id === playerId) {
+                scene = data.scene;
+                document.getElementById("news-container").style.display = scene === "yellowRoom" ? "block" : "none";
+                drawScene();
             }
         });
 
-        socket.on("newMessage", (msgData) => {
-            if (msgData.scene === currentScene) {
-                messages.push(msgData);
-                updateChat();
-            }
-        });
-
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "Enter" && chatInput === document.activeElement) {
-                const message = chatInput.value.trim();
-                if (message) {
-                    socket.emit("sendMessage", message);
-                    chatInput.value = "";
-                }
-            } else {
-                socket.emit("move", event.key);
-            }
-        });
-
-        function updateChat() {
-            chatContainer.innerHTML = messages.map(m => `<div>${m.id}: ${m.text}</div>`).join("");
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        function gameLoop() {
+        function drawScene() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Cambia sfondo in base alla scena
-            ctx.fillStyle = currentScene === "main" ? "#222" : "yellow";
+            ctx.fillStyle = scene === "yellowRoom" ? "yellow" : "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            for (const id in players) {
-                const player = players[id];
-                if (player.scene === currentScene) {
-                    ctx.fillStyle = id === myId ? "blue" : "red";
-                    ctx.fillRect(player.x, player.y, 20, 20);
-                }
+            for (let id in players) {
+                const p = players[id];
+                ctx.fillStyle = id === playerId ? "blue" : "red";
+                ctx.fillRect(p.x, p.y, 20, 20);
             }
 
-            if (currentScene === "main") {
-                // Rettangolo giallo "Giornale"
-                const rectX = 650, rectY = 260, rectWidth = 150, rectHeight = 80;
+            if (scene === "main") {
                 ctx.fillStyle = "yellow";
-                ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
-
+                ctx.fillRect(650, 260, 150, 80);
                 ctx.fillStyle = "black";
-                ctx.font = "20px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText("Giornale", rectX + rectWidth / 2, rectY + rectHeight / 2 + 5);
-            } else if (currentScene === "yellowRoom") {
-                // Rettangolo nero "Home"
-                const homeX = 300, homeY = 300, homeWidth = 150, homeHeight = 80;
+                ctx.fillText("Giornale", 700, 300);
+            } else if (scene === "yellowRoom") {
                 ctx.fillStyle = "black";
-                ctx.fillRect(homeX, homeY, homeWidth, homeHeight);
-
+                ctx.fillRect(300, 300, 150, 80);
                 ctx.fillStyle = "white";
-                ctx.font = "20px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText("Home", homeX + homeWidth / 2, homeY + homeHeight / 2 + 5);
+                ctx.fillText("Home", 350, 340);
             }
-
-            requestAnimationFrame(gameLoop);
         }
+
+        document.addEventListener("keydown", (e) => {
+            socket.emit("move", e.key);
+        });
+
+        socket.on("newsUpdate", (news) => {
+            const newsContainer = document.getElementById("news-container");
+            newsContainer.innerHTML = `<h3>Ultime notizie</h3>`;
+            ["libero", "repubblica", "ansa"].forEach(source => {
+                news[source].forEach(item => {
+                    newsContainer.innerHTML += `<p><strong>${item.title}</strong><br><a href="${item.link}" target="_blank">Leggi</a></p>`;
+                });
+            });
+        });
+
+        document.getElementById("chat-input").addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                socket.emit("sendMessage", e.target.value);
+                e.target.value = "";
+            }
+        });
+
+        socket.on("newMessage", (msg) => {
+            const chatContainer = document.getElementById("chat-container");
+            chatContainer.innerHTML += `<p>${msg.text}</p>`;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        });
+
     </script>
 </body>
 </html>
