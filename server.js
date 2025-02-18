@@ -1,60 +1,47 @@
-// server.js
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const path = require("path");
+const express = require('express');
+const axios = require('axios');
+const xml2js = require('xml2js');
+const http = require('http');
+const socketIo = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = socketIo(server);
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static('public')); // Per servire il client
 
-let players = {};
-const MAP_WIDTH = 2000;
-const MAP_HEIGHT = 2000;
-const PLAYER_SIZE = 20;
+let latestNews = { title: 'Caricamento notizie...', link: '#' };
 
-io.on("connection", (socket) => {
-    console.log("🔵 Utente connesso:", socket.id);
-
-    socket.on("setUsername", (username) => {
-        players[socket.id] = { 
-            username, 
-            x: Math.random() * (MAP_WIDTH - PLAYER_SIZE), 
-            y: Math.random() * (MAP_HEIGHT - PLAYER_SIZE) 
-        };
-        io.emit("updatePlayers", players);
-        socket.emit("loginSuccess");
-    });
-
-    socket.on("move", (key) => {
-        const player = players[socket.id];
-        if (!player) return;
-
-        const speed = 10;
-        if (key === "ArrowUp" || key === "w") player.y = Math.max(0, player.y - speed);
-        if (key === "ArrowDown" || key === "s") player.y = Math.min(MAP_HEIGHT - PLAYER_SIZE, player.y + speed);
-        if (key === "ArrowLeft" || key === "a") player.x = Math.max(0, player.x - speed);
-        if (key === "ArrowRight" || key === "d") player.x = Math.min(MAP_WIDTH - PLAYER_SIZE, player.x + speed);
-
-        io.emit("updatePlayers", players);
-    });
-
-    socket.on("chat message", (message) => {
-        if (players[socket.id]) {
-            io.emit("chat message", { username: players[socket.id].username, message });
+// Funzione per recuperare le ultime notizie da La Repubblica
+async function fetchLatestNews() {
+    try {
+        const response = await axios.get('https://www.repubblica.it/rss/homepage/rss2.0.xml');
+        const parsedData = await xml2js.parseStringPromise(response.data);
+        const items = parsedData.rss.channel[0].item;
+        if (items && items.length > 0) {
+            latestNews.title = items[0].title[0];
+            latestNews.link = items[0].link[0];
         }
-    });
+    } catch (error) {
+        console.error('Errore nel recupero delle notizie:', error);
+    }
+}
 
-    socket.on("disconnect", () => {
-        console.log("🔴 Utente disconnesso:", socket.id);
-        delete players[socket.id];
-        io.emit("updatePlayers", players);
+// Recupera le notizie all'avvio e ogni 30 minuti
+fetchLatestNews();
+setInterval(fetchLatestNews, 1800000);
+
+io.on('connection', (socket) => {
+    console.log('Un utente si è connesso');
+
+    // Invia la notizia corrente al nuovo client
+    socket.emit('newsUpdate', latestNews);
+
+    socket.on('disconnect', () => {
+        console.log('Un utente si è disconnesso');
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`🚀 Server avviato su http://localhost:${PORT}`);
+server.listen(3000, () => {
+    console.log('Server in ascolto sulla porta 3000');
 });
