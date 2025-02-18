@@ -130,3 +130,32 @@
     </script>
 </body>
 </html>
+
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#111"; // Sfondo scuro
+    ctx.fillRect(0, 0, canvas.width, canvas.height); 
+
+    // Disegna i giocatori
+    for (const id in players) {
+        const player = players[id];
+        ctx.fillStyle = id === myId ? "blue" : "red";
+        ctx.fillRect(player.x, player.y, 20, 20);
+    }
+
+    // Rettangolo giallo fisso a destra con scritta "Giornale"
+    const rectWidth = 150;
+    const rectHeight = 80;
+    const rectX = canvas.width - rectWidth - 20; // 20px dal bordo destro
+    const rectY = canvas.height / 2 - rectHeight / 2; // Centrato verticalmente
+
+    ctx.fillStyle = "yellow";
+    ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+
+    ctx.fillStyle = "black";
+    ctx.font = "20px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Giornale", rectX + rectWidth / 2, rectY + rectHeight / 2 + 5);
+
+    requestAnimationFrame(gameLoop);
+}
