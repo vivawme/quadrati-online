@@ -22,24 +22,19 @@ io.on("connection", (socket) => {
     io.emit("updatePlayers", players);
 
     socket.on("move", (key) => {
-        const player = players[socket.id];
-        if (!player) return;
+    const player = players[socket.id];
+    if (!player) return;
 
-        const speed = 10;
-        if (key === "ArrowUp" || key === "w") player.y -= speed;
-        if (key === "ArrowDown" || key === "s") player.y += speed;
-        if (key === "ArrowLeft" || key === "a") player.x -= speed;
-        if (key === "ArrowRight" || key === "d") player.x += speed;
+    const speed = 10;
+    if (key === "ArrowUp" || key === "w") player.y -= speed;
+    if (key === "ArrowDown" || key === "s") player.y += speed;
+    if (key === "ArrowLeft" || key === "a") player.x -= speed;
+    if (key === "ArrowRight" || key === "d") player.x += speed;
 
-        // Coordinate del rettangolo giallo (fisso sulla scena "main")
-        const rectX = 650;  
-        const rectY = 260;  
-        const rectWidth = 150;
-        const rectHeight = 80;
-
+    if (player.scene === "main") {
         // Controllo collisione con il rettangolo giallo
+        const rectX = 650, rectY = 260, rectWidth = 150, rectHeight = 80;
         if (
-            player.scene === "main" &&
             player.x < rectX + rectWidth &&
             player.x + 20 > rectX &&
             player.y < rectY + rectHeight &&
@@ -48,9 +43,23 @@ io.on("connection", (socket) => {
             player.scene = "yellowRoom";
             socket.emit("changeScene", { id: socket.id, scene: "yellowRoom" });
         }
+    } else if (player.scene === "yellowRoom") {
+        // Controllo collisione con il rettangolo nero "Home"
+        const homeX = 300, homeY = 300, homeWidth = 150, homeHeight = 80;
+        if (
+            player.x < homeX + homeWidth &&
+            player.x + 20 > homeX &&
+            player.y < homeY + homeHeight &&
+            player.y + 20 > homeY
+        ) {
+            player.scene = "main";
+            socket.emit("changeScene", { id: socket.id, scene: "main" });
+        }
+    }
 
-        io.emit("updatePlayers", players);
-    });
+    io.emit("updatePlayers", players);
+	});
+
 
     socket.on("disconnect", () => {
         console.log("🔴 Utente disconnesso:", socket.id);

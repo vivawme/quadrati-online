@@ -20,71 +20,46 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        const socket = io();
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
+    function gameLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Cambia sfondo in base alla scena
+        ctx.fillStyle = currentScene === "main" ? "#222" : "yellow";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        let players = {};
-        let myId = null;
-        let currentScene = "main"; // Scena attuale (main o yellowRoom)
-
-        socket.on("connect", () => {
-            myId = socket.id;
-            console.log("Connesso con ID:", myId);
-        });
-
-        socket.on("updatePlayers", (serverPlayers) => {
-            players = serverPlayers;
-        });
-
-        socket.on("changeScene", (data) => {
-            if (data.id === myId) {
-                currentScene = data.scene;
+        for (const id in players) {
+            const player = players[id];
+            if (player.scene === currentScene) {
+                ctx.fillStyle = id === myId ? "blue" : "red";
+                ctx.fillRect(player.x, player.y, 20, 20);
             }
-        });
-
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Cambia sfondo in base alla scena
-            ctx.fillStyle = currentScene === "main" ? "#222" : "yellow";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            for (const id in players) {
-                const player = players[id];
-                if (player.scene === currentScene) {
-                    ctx.fillStyle = id === myId ? "blue" : "red";
-                    ctx.fillRect(player.x, player.y, 20, 20);
-                }
-            }
-
-            // Disegna il rettangolo giallo solo nella scena "main"
-            if (currentScene === "main") {
-                const rectX = 650;  
-                const rectY = 260;
-                const rectWidth = 150;
-                const rectHeight = 80;
-
-                ctx.fillStyle = "yellow";
-                ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
-
-                ctx.fillStyle = "black";
-                ctx.font = "20px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText("Giornale", rectX + rectWidth / 2, rectY + rectHeight / 2 + 5);
-            }
-
-            requestAnimationFrame(gameLoop);
         }
 
-        gameLoop();
+        if (currentScene === "main") {
+            // Rettangolo giallo "Giornale"
+            const rectX = 650, rectY = 260, rectWidth = 150, rectHeight = 80;
+            ctx.fillStyle = "yellow";
+            ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 
-        window.addEventListener("keydown", (event) => {
-            socket.emit("move", event.key);
-        });
-    </script>
+            ctx.fillStyle = "black";
+            ctx.font = "20px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("Giornale", rectX + rectWidth / 2, rectY + rectHeight / 2 + 5);
+        } else if (currentScene === "yellowRoom") {
+            // Rettangolo nero "Home"
+            const homeX = 300, homeY = 300, homeWidth = 150, homeHeight = 80;
+            ctx.fillStyle = "black";
+            ctx.fillRect(homeX, homeY, homeWidth, homeHeight);
+
+            ctx.fillStyle = "white";
+            ctx.font = "20px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("Home", homeX + homeWidth / 2, homeY + homeHeight / 2 + 5);
+        }
+
+        requestAnimationFrame(gameLoop);
+    }
+</script>
+
 </body>
 </html>
