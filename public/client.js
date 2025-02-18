@@ -1,61 +1,46 @@
-document.addEventListener("DOMContentLoaded", () => {
-    const canvas = document.getElementById("gameCanvas");
-    if (!canvas) {
-        console.error("Errore: canvas non trovato!");
-        return;
+// client.js aggiornato con collisioni corrette ai bordi
+const socket = io();
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const squareSize = 20;
+const mapWidth = 4 * canvas.width; // Mappa ingrandita di 4x
+const mapHeight = 4 * canvas.height;
+let username;
+let player = { x: 50, y: 50, color: "blue" };
+let players = {};
+
+// Richiesta username
+while (!username) {
+    username = prompt("Inserisci il tuo username:");
+}
+socket.emit("newPlayer", { username, x: player.x, y: player.y });
+
+// Input per il movimento
+document.addEventListener("keydown", (event) => {
+    let oldX = player.x;
+    let oldY = player.y;
+    
+    if (event.key === "w" && player.y > 0) player.y -= 5; // Limite superiore
+    if (event.key === "s" && player.y + squareSize < mapHeight) player.y += 5; // Limite inferiore
+    if (event.key === "a" && player.x > 0) player.x -= 5; // Limite sinistro
+    if (event.key === "d" && player.x + squareSize < mapWidth) player.x += 5; // Limite destro
+    
+    if (oldX !== player.x || oldY !== player.y) {
+        socket.emit("move", { x: player.x, y: player.y });
     }
+});
 
-    const ctx = canvas.getContext("2d");
-    canvas.width = 800;
-    canvas.height = 600;
+socket.on("state", (serverPlayers) => {
+    players = serverPlayers;
+    draw();
+});
 
-    const socket = io("https://quadrati-online.onrender.com"); // Usa il tuo URL Render
-    let player = { x: 100, y: 100, size: 20 };
-    let players = {}; // Memorizza tutti i giocatori
-
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        for (let id in players) {
-            let p = players[id];
-            ctx.fillStyle = id === socket.id ? "blue" : "red"; // Il proprio quadrato è blu, gli altri rossi
-            ctx.fillRect(p.x, p.y, p.size, p.size);
-        }
-
-        requestAnimationFrame(draw);
-    }
-
-    draw(); // Avvia il loop di disegno
-
-    document.addEventListener("keydown", (event) => {
-        if (event.key === "w") player.y -= 10;
-        if (event.key === "s") player.y += 10;
-        if (event.key === "a") player.x -= 10;
-        if (event.key === "d") player.x += 10;
-
-        socket.emit("move", player);
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    Object.values(players).forEach((p) => {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, squareSize, squareSize);
+        ctx.fillStyle = "white";
+        ctx.fillText(p.username, p.x, p.y - 5);
     });
-
-    socket.on("update", (updatedPlayers) => {
-        players = updatedPlayers; // Aggiorna tutti i giocatori
-    });
-});
-const chatInput = document.getElementById("chatInput");
-const chatForm = document.getElementById("chatForm");
-const chatBox = document.getElementById("chatBox");
-
-chatForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    if (chatInput.value.trim() !== "") {
-        socket.emit("chat message", chatInput.value); // Invia messaggio al server
-        chatInput.value = ""; // Pulisce il campo di input
-    }
-});
-
-// Riceve e visualizza i messaggi della chat
-socket.on("chat message", (data) => {
-    const msgElement = document.createElement("p");
-    msgElement.textContent = `🗨️ ${data.id}: ${data.message}`;
-    chatBox.appendChild(msgElement);
-    chatBox.scrollTop = chatBox.scrollHeight; // Scorri in basso alla chat
-});
+}
