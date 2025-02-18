@@ -13,7 +13,12 @@ let players = {};
 io.on("connection", (socket) => {
     console.log("🔵 Utente connesso:", socket.id);
 
-    players[socket.id] = { x: Math.random() * 500, y: Math.random() * 500, scene: "main" };
+    // Posizione iniziale e scena
+    players[socket.id] = { 
+        x: Math.random() * 500, 
+        y: Math.random() * 500, 
+        scene: "main" 
+    };
     io.emit("updatePlayers", players);
 
     socket.on("move", (key) => {
@@ -26,12 +31,13 @@ io.on("connection", (socket) => {
         if (key === "ArrowLeft" || key === "a") player.x -= speed;
         if (key === "ArrowRight" || key === "d") player.x += speed;
 
-        // Controllo se il giocatore tocca il rettangolo giallo
-        const rectX = 800 - 150 - 20;
-        const rectY = 600 / 2 - 80 / 2;
+        // Coordinate del rettangolo giallo (fisso sulla scena "main")
+        const rectX = 650;  
+        const rectY = 260;  
         const rectWidth = 150;
         const rectHeight = 80;
 
+        // Controllo collisione con il rettangolo giallo
         if (
             player.scene === "main" &&
             player.x < rectX + rectWidth &&
@@ -40,14 +46,10 @@ io.on("connection", (socket) => {
             player.y + 20 > rectY
         ) {
             player.scene = "yellowRoom";
-            io.to(socket.id).emit("changeScene", { id: socket.id, scene: "yellowRoom" });
+            socket.emit("changeScene", { id: socket.id, scene: "yellowRoom" });
         }
 
         io.emit("updatePlayers", players);
-    });
-
-    socket.on("chat message", (message) => {
-        io.emit("chat message", { id: socket.id, message });
     });
 
     socket.on("disconnect", () => {

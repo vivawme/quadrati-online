@@ -10,60 +10,14 @@
             margin: 0;
             overflow: hidden;
             font-family: Arial, sans-serif;
-            background: #222;
-            color: white;
         }
-
         canvas {
             display: block;
-        }
-
-        #chatContainer {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            width: 300px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px;
-            border-radius: 5px;
-        }
-
-        #chatBox {
-            height: 150px;
-            overflow-y: auto;
-            border-bottom: 1px solid #fff;
-            margin-bottom: 5px;
-            padding: 5px;
-        }
-
-        #chatInput {
-            width: 80%;
-            padding: 5px;
-            background: #333;
-            border: 1px solid #555;
-            color: white;
-        }
-
-        #chatForm button {
-            width: 18%;
-            padding: 5px;
-            background: #00ff00;
-            color: black;
-            border: none;
-            cursor: pointer;
         }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
-
-    <div id="chatContainer">
-        <div id="chatBox"></div>
-        <form id="chatForm">
-            <input type="text" id="chatInput" placeholder="Scrivi un messaggio..." autocomplete="off">
-            <button type="submit">Invia</button>
-        </form>
-    </div>
 
     <script>
         const socket = io();
@@ -94,8 +48,10 @@
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = currentScene === "main" ? "#111" : "yellow";
-            ctx.fillRect(0, 0, canvas.width, canvas.height); 
+            
+            // Cambia sfondo in base alla scena
+            ctx.fillStyle = currentScene === "main" ? "#222" : "yellow";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             for (const id in players) {
                 const player = players[id];
@@ -105,11 +61,12 @@
                 }
             }
 
+            // Disegna il rettangolo giallo solo nella scena "main"
             if (currentScene === "main") {
+                const rectX = 650;  
+                const rectY = 260;
                 const rectWidth = 150;
                 const rectHeight = 80;
-                const rectX = canvas.width - rectWidth - 20;
-                const rectY = canvas.height / 2 - rectHeight / 2;
 
                 ctx.fillStyle = "yellow";
                 ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
@@ -127,25 +84,6 @@
 
         window.addEventListener("keydown", (event) => {
             socket.emit("move", event.key);
-        });
-
-        const chatInput = document.getElementById("chatInput");
-        const chatForm = document.getElementById("chatForm");
-        const chatBox = document.getElementById("chatBox");
-
-        chatForm.addEventListener("submit", (e) => {
-            e.preventDefault();
-            if (chatInput.value.trim() !== "") {
-                socket.emit("chat message", chatInput.value);
-                chatInput.value = "";
-            }
-        });
-
-        socket.on("chat message", (data) => {
-            const msgElement = document.createElement("p");
-            msgElement.textContent = `🗨️ ${data.id}: ${data.message}`;
-            chatBox.appendChild(msgElement);
-            chatBox.scrollTop = chatBox.scrollHeight;
         });
     </script>
 </body>
