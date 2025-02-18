@@ -1,106 +1,79 @@
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
-const Parser = require("rss-parser");
-const parser = new Parser();
+const path = require("path");
+const axios = require("axios");
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-app.use(express.static("public"));
+const PORT = process.env.PORT || 3000;
 
-const players = {};
-const messages = [];
-let newsCache = { libero: [], repubblica: [], ansa: [] };
-let lastFetchTime = 0;
-const fetchInterval = 10 * 60 * 1000; // 10 minuti
+app.use(express.static(path.join(__dirname, "public")));
 
-async function fetchNews() {
-    try {
-        const [liberoFeed, repubblicaFeed, ansaFeed] = await Promise.all([
-            parser.parseURL("https://www.liberoquotidiano.it/rss.xml"),
-            parser.parseURL("https://www.repubblica.it/rss.xml"),
-            parser.parseURL("https://www.ansa.it/sito/ansait_rss.xml")
-        ]);
-
-        newsCache.libero = liberoFeed.items.slice(0, 5);
-        newsCache.repubblica = repubblicaFeed.items.slice(0, 5);
-        newsCache.ansa = ansaFeed.items.slice(0, 5);
-        lastFetchTime = Date.now();
-    } catch (error) {
-        console.error("Errore nel recupero delle notizie:", error);
-    }
-}
+let players = {};
 
 io.on("connection", (socket) => {
     console.log("Un utente si è connesso:", socket.id);
 
-    players[socket.id] = { x: 100, y: 100, scene: "main" };
+    players[socket.id] = { x: 100, y: 100, color: "blue", scene: "main" };
 
-    socket.emit("init", { id: socket.id, players, messages });
+    socket.emit("currentPlayers", players);
+    socket.broadcast.emit("newPlayer", { id: socket.id, ...players[socket.id] });
 
-    socket.on("move", (key) => {
-        const player = players[socket.id];
-        if (!player) return;
-
-        const speed = 10;
-        if (key === "ArrowUp" || key === "w") player.y -= speed;
-        if (key === "ArrowDown" || key === "s") player.y += speed;
-        if (key === "ArrowLeft" || key === "a") player.x -= speed;
-        if (key === "ArrowRight" || key === "d") player.x += speed;
-
-        if (player.scene === "main") {
-            const rectX = 650, rectY = 260, rectWidth = 150, rectHeight = 80;
-            if (
-                player.x < rectX + rectWidth &&
-                player.x + 20 > rectX &&
-                player.y < rectY + rectHeight &&
-                player.y + 20 > rectY
-            ) {
-                player.scene = "yellowRoom";
-                socket.emit("changeScene", { id: socket.id, scene: "yellowRoom" });
-
-                if (Date.now() - lastFetchTime > fetchInterval) {
-                    fetchNews().then(() => {
-                        socket.emit("newsUpdate", newsCache);
-                    });
-                } else {
-                    socket.emit("newsUpdate", newsCache);
-                }
-            }
-        } else if (player.scene === "yellowRoom") {
-            const homeX = 300, homeY = 300, homeWidth = 150, homeHeight = 80;
-            if (
-                player.x < homeX + homeWidth &&
-                player.x + 20 > homeX &&
-                player.y < homeY + homeHeight &&
-                player.y + 20 > homeX
-            ) {
-                player.scene = "main";
-                socket.emit("changeScene", { id: socket.id, scene: "main" });
-            }
+    socket.on("move", (data) => {
+        if (players[socket.id]) {
+            players[socket.id].x = data.x;
+            players[socket.id].y = data.y;
+            io.emit("playerMoved", { id: socket.id, x: data.x, y: data.y });
         }
-
-        io.emit("updatePlayers", players);
     });
 
-    socket.on("sendMessage", (message) => {
-        const player = players[socket.id];
-        if (!player) return;
-
-        const msgData = { id: socket.id, scene: player.scene, text: message };
-        messages.push(msgData);
-        io.emit("newMessage", msgData);
+    socket.on("changeScene", (scene) => {
+        if (players[socket.id]) {
+            players[socket.id].scene = scene;
+            io.emit("sceneChanged", { id: socket.id, scene });
+        }
     });
 
     socket.on("disconnect", () => {
         console.log("Un utente si è disconnesso:", socket.id);
         delete players[socket.id];
-        io.emit("updatePlayers", players);
+        io.emit("removePlayer", socket.id);
     });
 });
 
-server.listen(3000, () => {
-    console.log("Server in ascolto sulla porta 3000");
+async function getNews() {
+    try {
+        const sources = [
+            "https://www.ansa.it/sito/ansait_rss.xml",
+            "https://www.repubblica.it/rss/homepage/rss2.0.xml",
+            "https://www.liberoquotidiano.it/rss.xml"
+        ];
+
+        const requests = sources.map(url => axios.get(url));
+        const responses = await Promise.all(requests);
+
+        return responses.map((res, index) => ({
+            source: sources[index],
+            title: res.data.match(/<title>(.*?)<\/title>/)[1] || "Nessuna notizia"
+        }));
+    } catch (error) {
+        console.error("Errore nel recupero delle notizie:", error);
+        return [];
+    }
+}
+
+app.get("/news", async (req, res) => {
+    try {
+        const feeds = await getNews();
+        res.json(feeds);
+    } catch (error) {
+        res.status(500).json({ error: "Errore nel recupero delle notizie" });
+    }
+});
+
+server.listen(PORT, () => {
+    console.log(`Server in ascolto su http://localhost:${PORT}`);
 });
