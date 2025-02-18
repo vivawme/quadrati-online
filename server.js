@@ -9,13 +9,14 @@ const io = socketIo(server);
 app.use(express.static("public"));
 
 const players = {};
+const messages = [];
 
 io.on("connection", (socket) => {
     console.log("Un utente si è connesso:", socket.id);
 
     players[socket.id] = { x: 100, y: 100, scene: "main" };
 
-    socket.emit("init", { id: socket.id, players });
+    socket.emit("init", { id: socket.id, players, messages });
 
     socket.on("move", (key) => {
         const player = players[socket.id];
@@ -54,6 +55,15 @@ io.on("connection", (socket) => {
         }
 
         io.emit("updatePlayers", players);
+    });
+
+    socket.on("sendMessage", (message) => {
+        const player = players[socket.id];
+        if (!player) return;
+
+        const msgData = { id: socket.id, scene: player.scene, text: message };
+        messages.push(msgData);
+        io.emit("newMessage", msgData);
     });
 
     socket.on("disconnect", () => {

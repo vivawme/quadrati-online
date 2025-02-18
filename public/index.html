@@ -6,17 +6,42 @@
     <title>Quadrati Online</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: black; }
+        body { margin: 0; overflow: hidden; background-color: black; font-family: Arial, sans-serif; }
         canvas { display: block; }
+        #chat-container {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            width: 300px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        #chat-input {
+            position: fixed;
+            bottom: 5px;
+            left: 10px;
+            width: 290px;
+            padding: 5px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
     
+    <div id="chat-container"></div>
+    <input type="text" id="chat-input" placeholder="Scrivi un messaggio..." autocomplete="off">
+
     <script>
         const socket = io();
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
+        const chatContainer = document.getElementById("chat-container");
+        const chatInput = document.getElementById("chat-input");
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -24,11 +49,14 @@
         let myId = null;
         let players = {};
         let currentScene = "main";
+        let messages = [];
 
         socket.on("init", (data) => {
             myId = data.id;
             players = data.players;
+            messages = data.messages;
             requestAnimationFrame(gameLoop);
+            updateChat();
         });
 
         socket.on("updatePlayers", (updatedPlayers) => {
@@ -41,9 +69,29 @@
             }
         });
 
-        document.addEventListener("keydown", (event) => {
-            socket.emit("move", event.key);
+        socket.on("newMessage", (msgData) => {
+            if (msgData.scene === currentScene) {
+                messages.push(msgData);
+                updateChat();
+            }
         });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && chatInput === document.activeElement) {
+                const message = chatInput.value.trim();
+                if (message) {
+                    socket.emit("sendMessage", message);
+                    chatInput.value = "";
+                }
+            } else {
+                socket.emit("move", event.key);
+            }
+        });
+
+        function updateChat() {
+            chatContainer.innerHTML = messages.map(m => `<div>${m.id}: ${m.text}</div>`).join("");
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
