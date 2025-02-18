@@ -13,13 +13,9 @@ let players = {};
 io.on("connection", (socket) => {
     console.log("🔵 Utente connesso:", socket.id);
 
-    // Aggiungi un nuovo giocatore in una posizione casuale
-    players[socket.id] = { x: Math.random() * 500, y: Math.random() * 500 };
-
-    // Invia la lista aggiornata dei giocatori a tutti
+    players[socket.id] = { x: Math.random() * 500, y: Math.random() * 500, scene: "main" };
     io.emit("updatePlayers", players);
 
-    // Gestisce il movimento
     socket.on("move", (key) => {
         const player = players[socket.id];
         if (!player) return;
@@ -30,15 +26,30 @@ io.on("connection", (socket) => {
         if (key === "ArrowLeft" || key === "a") player.x -= speed;
         if (key === "ArrowRight" || key === "d") player.x += speed;
 
+        // Controllo se il giocatore tocca il rettangolo giallo
+        const rectX = 800 - 150 - 20;
+        const rectY = 600 / 2 - 80 / 2;
+        const rectWidth = 150;
+        const rectHeight = 80;
+
+        if (
+            player.scene === "main" &&
+            player.x < rectX + rectWidth &&
+            player.x + 20 > rectX &&
+            player.y < rectY + rectHeight &&
+            player.y + 20 > rectY
+        ) {
+            player.scene = "yellowRoom";
+            io.to(socket.id).emit("changeScene", { id: socket.id, scene: "yellowRoom" });
+        }
+
         io.emit("updatePlayers", players);
     });
 
-    // Gestisce i messaggi della chat
     socket.on("chat message", (message) => {
         io.emit("chat message", { id: socket.id, message });
     });
 
-    // Gestisce la disconnessione del giocatore
     socket.on("disconnect", () => {
         console.log("🔴 Utente disconnesso:", socket.id);
         delete players[socket.id];
@@ -46,7 +57,6 @@ io.on("connection", (socket) => {
     });
 });
 
-// Avvia il server sulla porta 3000
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🚀 Server avviato su http://localhost:${PORT}`);

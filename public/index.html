@@ -16,10 +16,8 @@
 
         canvas {
             display: block;
-            background: #111;
         }
 
-        /* Stile della chat */
         #chatContainer {
             position: absolute;
             bottom: 10px;
@@ -59,7 +57,6 @@
 <body>
     <canvas id="gameCanvas"></canvas>
 
-    <!-- Contenitore della Chat -->
     <div id="chatContainer">
         <div id="chatBox"></div>
         <form id="chatForm">
@@ -78,6 +75,7 @@
 
         let players = {};
         let myId = null;
+        let currentScene = "main"; // Scena attuale (main o yellowRoom)
 
         socket.on("connect", () => {
             myId = socket.id;
@@ -88,31 +86,39 @@
             players = serverPlayers;
         });
 
+        socket.on("changeScene", (data) => {
+            if (data.id === myId) {
+                currentScene = data.scene;
+            }
+        });
+
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "#111"; // Sfondo scuro
+            ctx.fillStyle = currentScene === "main" ? "#111" : "yellow";
             ctx.fillRect(0, 0, canvas.width, canvas.height); 
 
-            // Disegna i giocatori
             for (const id in players) {
                 const player = players[id];
-                ctx.fillStyle = id === myId ? "blue" : "red";
-                ctx.fillRect(player.x, player.y, 20, 20);
+                if (player.scene === currentScene) {
+                    ctx.fillStyle = id === myId ? "blue" : "red";
+                    ctx.fillRect(player.x, player.y, 20, 20);
+                }
             }
 
-            // Rettangolo giallo fisso a destra con scritta "Giornale"
-            const rectWidth = 150;
-            const rectHeight = 80;
-            const rectX = canvas.width - rectWidth - 20; // 20px dal bordo destro
-            const rectY = canvas.height / 2 - rectHeight / 2; // Centrato verticalmente
+            if (currentScene === "main") {
+                const rectWidth = 150;
+                const rectHeight = 80;
+                const rectX = canvas.width - rectWidth - 20;
+                const rectY = canvas.height / 2 - rectHeight / 2;
 
-            ctx.fillStyle = "yellow";
-            ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+                ctx.fillStyle = "yellow";
+                ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 
-            ctx.fillStyle = "black";
-            ctx.font = "20px Arial";
-            ctx.textAlign = "center";
-            ctx.fillText("Giornale", rectX + rectWidth / 2, rectY + rectHeight / 2 + 5);
+                ctx.fillStyle = "black";
+                ctx.font = "20px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("Giornale", rectX + rectWidth / 2, rectY + rectHeight / 2 + 5);
+            }
 
             requestAnimationFrame(gameLoop);
         }
@@ -123,7 +129,6 @@
             socket.emit("move", event.key);
         });
 
-        // Chat
         const chatInput = document.getElementById("chatInput");
         const chatForm = document.getElementById("chatForm");
         const chatBox = document.getElementById("chatBox");
