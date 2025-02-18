@@ -1,72 +1,64 @@
-const socket = io();
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-
-let player = { x: 50, y: 50, size: 20, color: 'blue' };
-let newsRect = { x: 200, y: 200, width: 300, height: 50, title: 'Caricamento...', link: '#' };
-
-// Movimento
-document.addEventListener('keydown', (event) => {
-    let speed = 5;
-    if (event.key === 'ArrowUp' && player.y > 0) player.y -= speed;
-    if (event.key === 'ArrowDown' && player.y + player.size < canvas.height - 100) player.y += speed; // Chat come bordo
-    if (event.key === 'ArrowLeft' && player.x > 0) player.x -= speed;
-    if (event.key === 'ArrowRight' && player.x + player.size < canvas.width) player.x += speed;
-
-    checkNewsInteraction();
-});
-
-// Controlla se il giocatore tocca il rettangolo delle notizie
-function checkNewsInteraction() {
-    if (player.x < newsRect.x + newsRect.width &&
-        player.x + player.size > newsRect.x &&
-        player.y < newsRect.y + newsRect.height &&
-        player.y + player.size > newsRect.y) {
-        window.open(newsRect.link, '_blank');
+document.addEventListener("DOMContentLoaded", () => {
+    const canvas = document.getElementById("gameCanvas");
+    if (!canvas) {
+        console.error("Errore: canvas non trovato!");
+        return;
     }
-}
 
-// Disegna il gioco
-function drawGame() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d");
+    canvas.width = 800;
+    canvas.height = 600;
 
-    // Disegna il giocatore
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x, player.y, player.size, player.size);
+	const socket = io("https://quadrati-online.onrender.com"); // Usa il tuo URL Render
 
-    // Disegna il rettangolo delle notizie
-    ctx.fillStyle = 'gray';
-    ctx.fillRect(newsRect.x, newsRect.y, newsRect.width, newsRect.height);
-    ctx.fillStyle = 'white';
-    ctx.font = '16px Arial';
-    ctx.fillText(newsRect.title, newsRect.x + 10, newsRect.y + 30);
+    let player = { x: 100, y: 100, size: 20 };
+    let players = {}; // Memorizza tutti i giocatori
 
-    requestAnimationFrame(drawGame);
-}
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-// Riceve la notizia aggiornata dal server
-socket.on('newsUpdate', (news) => {
-    newsRect.title = news.title;
-    newsRect.link = news.link;
-});
+        for (let id in players) {
+            let p = players[id];
+            ctx.fillStyle = id === socket.id ? "blue" : "red"; // Il proprio quadrato è blu, gli altri rossi
+            ctx.fillRect(p.x, p.y, p.size, p.size);
+        }
 
-// Chat
-const chatInput = document.getElementById('chatInput');
-const messagesDiv = document.getElementById('messages');
-
-function sendMessage() {
-    const message = chatInput.value;
-    if (message) {
-        socket.emit('chatMessage', message);
-        chatInput.value = '';
+        requestAnimationFrame(draw);
     }
-}
 
-socket.on('chatMessage', (msg) => {
-    const messageElement = document.createElement('div');
-    messageElement.textContent = msg;
-    messagesDiv.appendChild(messageElement);
+    draw(); // Avvia il loop di disegno
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "w") player.y -= 10;
+        if (event.key === "s") player.y += 10;
+        if (event.key === "a") player.x -= 10;
+        if (event.key === "d") player.x += 10;
+
+        socket.emit("move", player);
+    });
+
+    socket.on("update", (updatedPlayers) => {
+        players = updatedPlayers; // Aggiorna tutti i giocatori
+    });
+	
+	const chatInput = document.getElementById("chatInput");
+const chatForm = document.getElementById("chatForm");
+const chatBox = document.getElementById("chatBox");
+
+chatForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (chatInput.value.trim() !== "") {
+        socket.emit("chat message", chatInput.value); // Invia messaggio al server
+        chatInput.value = ""; // Pulisce il campo di input
+    }
 });
 
-// Avvia il gioco
-drawGame();
+// Riceve e visualizza i messaggi della chat
+socket.on("chat message", (data) => {
+    const msgElement = document.createElement("p");
+    msgElement.textContent = `🗨️ ${data.id}: ${data.message}`;
+    chatBox.appendChild(msgElement);
+    chatBox.scrollTop = chatBox.scrollHeight; // Scorri in basso alla chat
+});
+
+});
