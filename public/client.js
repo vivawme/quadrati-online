@@ -1,33 +1,31 @@
-// client.js aggiornato con collisioni corrette ai bordi
+// client.js aggiornato con collisione corretta sul bordo inferiore
 const socket = io();
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-const squareSize = 20;
-const mapWidth = 4 * canvas.width; // Mappa ingrandita di 4x
-const mapHeight = 4 * canvas.height;
-let username;
-let player = { x: 50, y: 50, color: "blue" };
+const chatInput = document.getElementById("chatInput");
+const chatMessages = document.getElementById("chatMessages");
+const chatForm = document.getElementById("chatForm");
+
+const PLAYER_SIZE = 20;
 let players = {};
+let username = prompt("Inserisci il tuo nome:") || "Anonimo";
 
-// Richiesta username
-while (!username) {
-    username = prompt("Inserisci il tuo username:");
-}
-socket.emit("newPlayer", { username, x: player.x, y: player.y });
+let player = {
+    x: Math.random() * (canvas.width - PLAYER_SIZE),
+    y: Math.random() * (canvas.height - PLAYER_SIZE),
+    color: "blue",
+    username: username
+};
 
-// Input per il movimento
-document.addEventListener("keydown", (event) => {
-    let oldX = player.x;
-    let oldY = player.y;
-    
-    if (event.key === "w" && player.y > 0) player.y -= 5; // Limite superiore
-    if (event.key === "s" && player.y + squareSize < mapHeight) player.y += 5; // Limite inferiore
-    if (event.key === "a" && player.x > 0) player.x -= 5; // Limite sinistro
-    if (event.key === "d" && player.x + squareSize < mapWidth) player.x += 5; // Limite destro
-    
-    if (oldX !== player.x || oldY !== player.y) {
-        socket.emit("move", { x: player.x, y: player.y });
-    }
+socket.emit("newPlayer", player);
+
+window.addEventListener("keydown", (e) => {
+    let speed = 5;
+    if (e.key === "w" && player.y > 0) player.y -= speed; // Bordo superiore
+    if (e.key === "s" && player.y < canvas.height - PLAYER_SIZE - 50) player.y += speed; // Bordo inferiore (prima della chat)
+    if (e.key === "a" && player.x > 0) player.x -= speed; // Bordo sinistro
+    if (e.key === "d" && player.x < canvas.width - PLAYER_SIZE) player.x += speed; // Bordo destro
+    socket.emit("move", player);
 });
 
 socket.on("state", (serverPlayers) => {
@@ -35,12 +33,28 @@ socket.on("state", (serverPlayers) => {
     draw();
 });
 
+socket.on("message", (data) => {
+    const msg = document.createElement("div");
+    msg.textContent = `${data.username}: ${data.message}`;
+    chatMessages.appendChild(msg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    Object.values(players).forEach((p) => {
+    for (let id in players) {
+        let p = players[id];
         ctx.fillStyle = p.color;
-        ctx.fillRect(p.x, p.y, squareSize, squareSize);
+        ctx.fillRect(p.x, p.y, PLAYER_SIZE, PLAYER_SIZE);
         ctx.fillStyle = "white";
         ctx.fillText(p.username, p.x, p.y - 5);
-    });
+    }
 }
+
+chatForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (chatInput.value) {
+        socket.emit("message", { username: username, message: chatInput.value });
+        chatInput.value = "";
+    }
+});
